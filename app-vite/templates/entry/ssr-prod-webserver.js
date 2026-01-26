@@ -4,21 +4,17 @@
  * DO NOT EDIT.
  **/
 
-import { join, basename, isAbsolute } from 'node:path'
-import { readFileSync } from 'node:fs'
+import { join, isAbsolute } from 'node:path'
+import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url'
-import { renderToString } from 'vue/server-renderer'
 <% if (metaConf.hasStore && ssr.manualStoreSerialization !== true) { %>
 import serialize from 'serialize-javascript'
 <% } %>
 
-import renderTemplate from './render-template.js'
-import serverEntry from './server/server-entry.js'
-
-import { create, listen, renderPreloadTag, serveStaticContent } from 'app/src-ssr/server'
+import { create, listen, serveStaticContent } from 'app/src-ssr/server'
 import injectMiddlewares from './ssr-middlewares'
 
-const port = process.env.PORT || <%= ssr.prodPort %>
+const port = process.env.SSR_PROD_PORT || <%= ssr.prodPort %>
 
 const doubleSlashRE = /\/\//g
 const publicPath = `<%= build.publicPath %>`
@@ -29,47 +25,11 @@ const resolveUrlPath = publicPath === '/'
 const rootFolder = fileURLToPath(new URL('.', import.meta.url))
 const publicFolder = join(rootFolder, 'client')
 
-const clientManifest = JSON.parse(
-  readFileSync(join(rootFolder, './quasar.manifest.json'),
-  'utf-8'
-  )
-)
-
 function resolvePublicFolder () {
   const dir = join(...arguments)
   return isAbsolute(dir) === true
     ? dir
     : join(publicFolder, dir)
-}
-
-function renderModulesPreload (modules, opts) {
-  let links = ''
-  const seen = new Set()
-
-  modules.forEach(id => {
-    const files = clientManifest[id]
-    if (files === void 0) return
-
-    files.forEach(file => {
-      if (seen.has(file) === true) return
-
-      seen.add(file)
-      const filename = basename(file)
-
-      if (clientManifest[filename] !== void 0) {
-        for (const depFile of clientManifest[filename]) {
-          if (seen.has(depFile) === false) {
-            links += renderPreloadTag(depFile, opts)
-            seen.add(depFile)
-          }
-        }
-      }
-
-      links += renderPreloadTag(file, opts)
-    })
-  })
-
-  return links
 }
 
 <% if (metaConf.hasStore && ssr.manualStoreSerialization !== true) { %>
@@ -85,42 +45,45 @@ function renderStoreState (ssrContext) {
 }
 <% } %>
 
-async function render (ssrContext) {
-  const onRenderedList = []
-
-  Object.assign(ssrContext, {
-    _meta: {},
-    onRendered: fn => { onRenderedList.push(fn) }
-  })
-
-  try {
-    const renderFn = await serverEntry(ssrContext)
-    const runtimePageContent = await renderToString(renderFn, ssrContext)
-
-    onRenderedList.forEach(fn => { fn() })
-
-    // maintain compatibility with some well-known Vue plugins
-    // like @vue/apollo-ssr:
-    typeof ssrContext.rendered === 'function' && ssrContext.rendered()
-
-    ssrContext._meta.runtimePageContent = runtimePageContent
-
-    <% if (metaConf.hasStore && ssr.manualStoreSerialization !== true) { %>
-      if (ssrContext.state !== void 0) {
-        ssrContext._meta.headTags = renderStoreState(ssrContext) + ssrContext._meta.headTags
-      }
-    <% } %>
-
-    // @vitejs/plugin-vue injects code into a component's setup() that registers
-    // itself on ctx.modules. After the render, ctx.modules would contain all the
-    // components that have been instantiated during this render call.
-    ssrContext._meta.endingHeadTags += renderModulesPreload(ssrContext.modules, { ssrContext })
-
-    return renderTemplate(ssrContext)
+let _handlerPromise;
+let _ssrHandler;
+async function ensureReady() {
+  if (!_ssrHandler) {
+    if (!_handlerPromise) {
+      _handlerPromise = _prepareHandler();
+    }
+    _ssrHandler = await _handlerPromise;
   }
-  catch (err) {
-    throw err
+  return _ssrHandler;
+}
+
+async function _prepareHandler() {
+  // handler
+  const fileHandler = join(rootFolder, 'handler.js');
+  const handlerInstance = await import(pathToHref(fileHandler));
+  // initialize
+  const zovaSys = await handlerInstance.initialize(process.env);
+  // ssr handler
+  const ssrHandler = await zovaSys.meta.$getSsrHandler(rootFolder);
+  await ssrHandler.ensureReady();
+  // ok
+  return ssrHandler;
+}
+
+function pathToHref(fileName) {
+  return pathToFileURL(fileName).href;
+  // return Path.sep === '\\' ? pathToFileURL(fileName).href : fileName;
+}
+
+async function render ({req, res}) {
+  const ssrHandler = await ensureReady();
+  const html = await ssrHandler.render({req, res});
+  if(!html) {
+    const err = new Error('not found');
+    err.code = err.status = 404;
+    throw err;
   }
+  return html;
 }
 
 const middlewareParams = {
