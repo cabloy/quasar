@@ -31,9 +31,6 @@ import '@quasar/extras/<%= asset %>/<%= asset %>.css'
 import '@quasar/extras/animate/<%= asset %>.css'
 <% }) %>
 
-// We load Quasar stylesheet file
-import 'quasar/dist/quasar.<%= metaConf.css.quasarSrcExt %>'
-
 <% if (framework.cssAddon) { %>
 // We add Quasar addons, if they were requested
 import 'quasar/src/css/flex-addon.sass'
@@ -44,7 +41,6 @@ import '<%= asset.path %>'
 <% }) %>
 
 import createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, { ssrIsRunningOnClientPWA }<% } %> from './app.js'
-import quasarUserOptions from './quasar-user-options.js'
 
 <% if (ctx.mode.pwa) { %>
 import 'app/<%= sourceFiles.pwaRegisterServiceWorker %>'
@@ -58,69 +54,19 @@ import { addPreFetchHooks } from './client-prefetch.js'
 console.info('[Quasar] Running <%= ctx.modeName.toUpperCase() + (ctx.mode.ssr && ctx.mode.pwa ? ' + PWA' : '') %>.')
 <% } %>
 
-const publicPath = `<%= build.publicPath %>`
-
 async function start ({
   app,
-  router
-  <%= metaConf.hasStore ? ', store' : '' %>
 }<%= bootEntries.length !== 0 ? ', bootFiles' : '' %>) {
+
   <% if (bootEntries.length !== 0) { %>
-  let hasRedirected = false
-  const getRedirectUrl = url => {
-    try { return router.resolve(url).href }
-    catch (err) {}
 
-    return Object(url) === url
-      ? null
-      : url
-  }
-  const redirect = url => {
-    hasRedirected = true
-
-    if (typeof url === 'string' && /^https?:\/\//.test(url)) {
-      window.location.href = url
-      return
-    }
-
-    const href = getRedirectUrl(url)
-
-    // continue if we didn't fail to resolve the url
-    if (href !== null) {
-      window.location.href = href
-      <%= build.vueRouterMode === 'hash' ? 'window.location.reload()' : '' %>
-    }
+  for (let i = 0; i < bootFiles.length; i++) {
+    await bootFiles[i]({
+      app,
+    })
   }
 
-  const urlPath = window.location.href.replace(window.location.origin, '')
-
-  for (let i = 0; hasRedirected === false && i < bootFiles.length; i++) {
-    try {
-      await bootFiles[i]({
-        app,
-        router,
-        <%= metaConf.hasStore ? 'store,' : '' %>
-        ssrContext: null,
-        redirect,
-        urlPath,
-        publicPath
-      })
-    }
-    catch (err) {
-      if (err && err.url) {
-        redirect(err.url)
-        return
-      }
-
-      console.error('[Quasar] boot error:', err)
-      return
-    }
-  }
-
-  if (hasRedirected === true) return
   <% } %>
-
-  app.use(router)
 
   <% if (ctx.mode.ssr) { %>
     <% if (ctx.mode.pwa) { %>
@@ -134,12 +80,10 @@ async function start ({
     <% } %>
     // wait until router has resolved all async before hooks
     // and async components...
-    router.isReady().then(() => {
-      <% if (preFetch) { %>
-      addPreFetchHooks({ router<%= metaConf.hasStore ? ', store' : '' %>, publicPath })
-      <% } %>
-      app.mount('#q-app')
-    })
+    <% if (preFetch) { %>
+    addPreFetchHooks({ router<%= metaConf.hasStore ? ', store' : '' %>, publicPath })
+    <% } %>
+    app.mount('#q-app')
     <% if (ctx.mode.pwa) { %>
     }
     <% } %>
@@ -166,7 +110,7 @@ createQuasarApp(<%=
   ctx.mode.ssr
     ? (ctx.mode.pwa ? 'ssrIsRunningOnClientPWA ? createApp : createSSRApp' : 'createSSRApp')
     : 'createApp'
-%>, quasarUserOptions)
+%>)
 <% if (bootEntries.length !== 0) { %>
   .then(app => {
     // eventually remove this when Cordova/Capacitor/Electron support becomes old

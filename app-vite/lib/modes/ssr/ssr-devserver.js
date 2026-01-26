@@ -6,6 +6,8 @@ import chokidar from 'chokidar'
 import debounce from 'lodash/debounce.js'
 import serialize from 'serialize-javascript'
 import { green } from 'kolorist'
+import { collectCss, renderTeleports } from 'zova-vite'
+import * as path from 'node:path'
 
 import { AppDevserver } from '../../app-devserver.js'
 import { getPackage } from '../../utils/get-package.js'
@@ -27,6 +29,13 @@ function logServerMessage (title, msg, additional) {
 /** @type {import('@quasar/render-ssr-error').default} */
 let renderSSRError = null
 let vueRenderToString = null
+
+function renderError ({ err, req, res }) {
+  log()
+  warn(req.url, 'Render failed')
+
+  renderSSRError({ err, req, res })
+}
 
 function renderStoreState (ssrContext) {
   const nonce = ssrContext.nonce !== void 0
@@ -172,7 +181,7 @@ export class QuasarModeDevserver extends AppDevserver {
     }
 
     if (vueRenderToString === null) {
-      const { renderToString } = await getPackage('vue/server-renderer', quasarConf.ctx.appPaths.appDir)
+      const { renderToString } = await getPackage('@cabloy/vue-server-renderer', quasarConf.ctx.appPaths.appDir)
       vueRenderToString = renderToString
     }
 
@@ -229,35 +238,53 @@ export class QuasarModeDevserver extends AppDevserver {
       try {
         const renderApp = await viteModuleRunner.import(this.#pathMap.serverEntryFile)
 
+        await renderApp.initialize()
+
         const app = await renderApp.default(ssrContext)
-        const runtimePageContent = await vueRenderToString(app, ssrContext)
 
-        onRenderedList.forEach(fn => { fn() })
-
-        // maintain compatibility with some well-known Vue plugins
-        // like @vue/apollo-ssr:
-        typeof ssrContext.rendered === 'function' && ssrContext.rendered()
+        let runtimePageContent
+        let err2
+        try {
+          runtimePageContent = await vueRenderToString(app, ssrContext)
+        }
+        catch (err) {
+          err2 = err
+        }
+        const error = ssrContext._meta.renderError ?? err2
+        onRenderedList.forEach(fn => { fn(error) })
+        ssrContext.rendered(error)
+        if (error) {
+          if (error instanceof Error) throw error
+          return error
+        }
 
         if (ssrContext.state !== void 0 && quasarConf.ssr.manualStoreSerialization !== true) {
           ssrContext._meta.headTags = renderStoreState(ssrContext) + ssrContext._meta.headTags
         }
 
-        let html = renderTemplate(ssrContext)
-
-        const url = ssrContext.url || ssrContext.req.url
-        const originalUrl = ssrContext.originalUrl || ssrContext.req.originalUrl
-        html = await viteClient.transformIndexHtml(url, html, originalUrl)
-        html = html.replace(
-          entryPointMarkup,
-          `<div id="q-app">${ runtimePageContent }</div>`
+        ssrContext._meta.endingHeadTags += collectCss(
+          [ viteServer.moduleGraph.getModuleById(this.#pathMap.serverEntryFile.replaceAll('\\\\', '/')) ].concat(
+            [ ...(ssrContext.modules || []) ]
+              .map((componentPath) => viteServer.moduleGraph.getModuleById(
+                path.resolve(componentPath).replaceAll('\\\\', '/')
+              )))
         )
 
-        logServerMessage('Rendered', url, `${ Date.now() - startTime }ms`)
+        let html = renderTemplate(ssrContext)
+
+        html = await viteClient.transformIndexHtml(ssrContext.req.url, html, ssrContext.req.url)
+        html = html.replace(
+          entryPointMarkup,
+          `<div id="q-app">${ runtimePageContent }</div>${ renderTeleports(ssrContext.teleports) }`
+        )
+
+        logServerMessage('Rendered', ssrContext.req.url, `${ Date.now() - startTime }ms`)
 
         return html
       }
       catch (err) {
-        viteServer.ssrFixStacktrace(err)
+        console.error(err)
+        // viteServer.ssrFixStacktrace(err)
         throw err
       }
     }
@@ -280,14 +307,7 @@ export class QuasarModeDevserver extends AppDevserver {
       await this.#webserver.close()
     }
 
-    const {
-      create,
-      injectDevMiddleware = ({ app }) => (middleware) => app.use(middleware),
-      listen,
-      close,
-      injectMiddlewares,
-      serveStaticContent
-    } = await import(
+    const { create, listen, close, injectMiddlewares, serveStaticContent } = await import(
       pathToFileURL(this.#pathMap.serverFile) + '?t=' + Date.now()
     )
     const { publicPath } = this.#appOptions
@@ -295,7 +315,6 @@ export class QuasarModeDevserver extends AppDevserver {
 
     const middlewareParams = {
       port: this.#appOptions.port,
-      devHttpsOptions: quasarConf.devServer.https,
       resolve: {
         urlPath: this.#appOptions.resolveUrlPath,
         root: (...args) => join(this.#pathMap.rootFolder, ...args),
@@ -314,25 +333,17 @@ export class QuasarModeDevserver extends AppDevserver {
     const serveStatic = await serveStaticContent(middlewareParams)
     middlewareParams.serve = {
       static: serveStatic,
-      error: ({ err, req, res }) => {
-        log()
-        warn(req.url, 'Render failed')
-
-        renderSSRError({ err, req, res, projectRootFolder: quasarConf.ctx.appPaths.appDir })
-      }
+      error: renderError
     }
 
-    /** @type {import('../../../types').SsrInjectDevMiddlewareFn} */
-    const registerDevMiddleware = await injectDevMiddleware(middlewareParams)
-
-    await registerDevMiddleware((req, res, next) => {
+    // vite devmiddleware modifies req.url to account for publicPath
+    // but we'll break usage in the webserver if we do so
+    app.use((req, res, next) => {
       if (this.#viteClient === null) {
         next()
         return
       }
 
-      // Vite dev middleware modifies req.url to account for publicPath
-      // but we'll break usage in the webserver if we do so
       const { url } = req
       this.#viteClient.middlewares.handle(req, res, err => {
         req.url = url
@@ -342,7 +353,7 @@ export class QuasarModeDevserver extends AppDevserver {
 
     await injectMiddlewares(middlewareParams)
 
-    publicPath !== '/' && await registerDevMiddleware((req, res, next) => {
+    publicPath !== '/' && app.use((req, res, next) => {
       const pathname = new URL(req.url, `http://${ req.headers.host }`).pathname || '/'
 
       if (pathname.startsWith(publicPath) === true) {
@@ -385,10 +396,8 @@ export class QuasarModeDevserver extends AppDevserver {
     })
 
     if (quasarConf.devServer.https) {
-      middlewareParams.devHttpsApp = await this.#createLazyDevHttpsServer(
-        quasarConf.devServer.https,
-        app
-      )
+      const https = await import('node:https')
+      middlewareParams.devHttpsApp = https.createServer(quasarConf.devServer.https, app)
     }
 
     middlewareParams.listenResult = await listen(middlewareParams)
@@ -404,56 +413,6 @@ export class QuasarModeDevserver extends AppDevserver {
 
     this.printBanner(quasarConf)
     this.#viteClient?.ws.send({ type: 'full-reload' })
-  }
-
-  /**
-   * Lazily create the devHttpsApp proxy when it's first accessed.
-   * This allows the user to handle the devHttpsApp manually if they need to.
-   * This is useful when they are using an custom SSR webserver such as Fastify and h3
-   */
-  async #createLazyDevHttpsServer (httpsOptions, app) {
-    const { createServer } = await import('node:https')
-    const createInstance = () => {
-      try {
-        return createServer(httpsOptions, app)
-      }
-      catch (error) {
-        if (error.code === 'ERR_INVALID_ARG_TYPE') {
-          warn(
-            'The SSR app instance is not compatible with automatic HTTPS support. '
-            + 'Please use `devHttpsOptions` property from callback scope in `create` or `listen` to set up HTTPS manually.'
-          )
-        }
-        else {
-          warn(
-            `An error occurred while setting up HTTPS for the SSR app instance, devHttpsApp won't be available. Error: ${ error.message }`
-          )
-        }
-      }
-    }
-
-    return new Proxy({}, {
-      get: (target, prop) => {
-        // If handling the result of this function as a Promise, we don't want to do anything
-        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-          return
-        }
-
-        if (!target.instance) {
-          target.instance = createInstance()
-        }
-
-        return target.instance?.[ prop ]
-      },
-      set: (target, prop, value) => {
-        if (!target.instance) {
-          target.instance = createInstance()
-        }
-
-        target.instance[ prop ] = value
-        return true
-      }
-    })
   }
 
   // also update pwa-devserver.js when changing here

@@ -11,10 +11,6 @@
  * Boot files are your "main.js"
  **/
 
-<% if (ctx.mode.bex) { %>
-import { bex } from './bex-app.js'
-<% } %>
-
 <% if (ctx.mode.capacitor) { %>
   <% if (metaConf.versions.capacitor <= 2) { %>
   import { Plugins } from '@capacitor/core'
@@ -31,12 +27,9 @@ import { bex } from './bex-app.js'
   <% } %>
 <% } %>
 
-import { Quasar } from 'quasar'
+import mainFn from 'boot/main'
 import { markRaw } from 'vue'
 import <%= metaConf.needsAppMountHook === true ? 'AppComponent' : 'RootComponent' %> from 'app/<%= sourceFiles.rootComponent %>'
-
-<% if (metaConf.hasStore) { %>import createStore from 'app/<%= sourceFiles.store %>'<% } %>
-import createRouter from 'app/<%= sourceFiles.router %>'
 
 <% if (metaConf.needsAppMountHook === true) { %>
 import { defineComponent, h, onMounted<%= ctx.mode.ssr && ssr.manualPostHydrationTrigger !== true ? ', getCurrentInstance' : '' %> } from 'vue'
@@ -64,12 +57,7 @@ export const ssrIsRunningOnClientPWA = typeof window !== 'undefined' &&
   document.body.getAttribute('data-server-rendered') === null
 <% } %>
 
-export default async function (createAppFn, quasarUserOptions<%= ctx.mode.ssr ? ', ssrContext' : '' %>) {
-  <% if (ctx.mode.bex) { %>
-    await bex.promise
-    delete bex.promise
-  <% } %>
-
+export default async function (createAppFn<%= ctx.mode.ssr ? ', ssrContext' : '' %>) {
   // Create the app instance.
   // Here we inject into it the Quasar UI, the router & possibly the store.
   const app = createAppFn(RootComponent)
@@ -78,45 +66,10 @@ export default async function (createAppFn, quasarUserOptions<%= ctx.mode.ssr ? 
   app.config.performance = true
   <% } %>
 
-  app.use(Quasar, quasarUserOptions<%= ctx.mode.ssr ? ', ssrContext' : '' %>)
+  mainFn({app<%= ctx.mode.ssr ? ', ssrContext' : '' %>})
 
-  <% if (ctx.mode.bex) { %>
-    app.config.globalProperties.$q.bex = bex.bridge
-  <% } else if (ctx.mode.capacitor) { %>
-    app.config.globalProperties.$q.capacitor = window.Capacitor
-  <% } %>
-
-  <% if (metaConf.hasStore) { %>
-    const store = typeof createStore === 'function'
-      ? await createStore({<%= ctx.mode.ssr ? 'ssrContext' : '' %>})
-      : createStore
-
-    <% if (metaConf.storePackage === 'pinia') { %>
-      app.use(store)
-
-      <% if (ctx.mode.ssr && ssr.manualStoreHydration !== true) { %>
-        // prime the store with server-initialized state.
-        // the state is determined during SSR and inlined in the page markup.
-        if (typeof window !== 'undefined' && <% if (ctx.mode.pwa) { %>ssrIsRunningOnClientPWA !== true && <% } %>window.__INITIAL_STATE__ !== void 0) {
-          store.state.value = window.__INITIAL_STATE__
-          // for security reasons, we'll delete this
-          delete window.__INITIAL_STATE__
-        }
-      <% } %>
-    <% } %>
-  <% } %>
-
-  const router = markRaw(
-    typeof createRouter === 'function'
-      ? await createRouter({<%= ctx.mode.ssr ? 'ssrContext' + (metaConf.hasStore ? ',' : '') : '' %><%= metaConf.hasStore ? 'store' : '' %>})
-      : createRouter
-  )
-
-  <% if (metaConf.hasStore) { %>
-    // make router instance available in store
-    <% if (metaConf.storePackage === 'pinia') { %>
-      store.use(({ store }) => { store.router = router })
-    <% } %>
+  <% if (ctx.mode.capacitor) { %>
+  app.config.globalProperties.$q.capacitor = window.Capacitor
   <% } %>
 
   // Expose the app, the router and the store.
@@ -124,7 +77,5 @@ export default async function (createAppFn, quasarUserOptions<%= ctx.mode.ssr ? 
   // different depending on whether we are in a browser or on the server.
   return {
     app,
-    <%= metaConf.hasStore ? 'store,' : '' %>
-    router
   }
 }
