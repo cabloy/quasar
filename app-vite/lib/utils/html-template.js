@@ -8,6 +8,7 @@ const htmlStartTagRE = /(<html[^>]*)(>)/i
 const headStartTagRE = /(<head[^>]*)(>)/i
 const headEndRE = /(<\/head>)/i
 const bodyStartTagRE = /(<body[^>]*)(>)/i
+const bodyEndRE = /(<\/body>)/i
 
 export const entryPointMarkup = '<!-- quasar:entry-point -->'
 export const attachMarkup = '<div id="q-app"></div>'
@@ -48,6 +49,10 @@ function injectSsrRuntimeInterpolation (html) {
     .replace(
       headEndRE,
       (_, tag) => `{{ ssrContext._meta.endingHeadTags || '' }}${ tag }`
+    )
+    .replace(
+      bodyEndRE,
+      (_, tag) => `{{ ssrContext._meta.endingBodyTags || '' }}${ tag }`
     )
     .replace(
       bodyStartTagRE,
