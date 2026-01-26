@@ -16,9 +16,9 @@ const ssrManifestIdQueryReplaceRE = /vue\?vue.*$/
 
 export class QuasarModeBuilder extends AppBuilder {
   async build () {
-    await this.#buildWebserver()
-    await this.#copyWebserverFiles()
-    await this.#writePackageJson()
+    // await this.#buildWebserver()
+    // await this.#copyWebserverFiles()
+    // await this.#writePackageJson()
 
     if (this.quasarConf.ssr.pwa === true) {
       // also update pwa-builder.js when changing here
@@ -68,6 +68,7 @@ export class QuasarModeBuilder extends AppBuilder {
 
     const viteServerConfig = await quasarSsrConfig.viteServer(this.quasarConf)
     await this.buildWithVite('SSR Server', viteServerConfig)
+    await this.#buildWebserver()
 
     this.printSummary(this.quasarConf.build.distDir, true)
   }
@@ -126,14 +127,24 @@ export class QuasarModeBuilder extends AppBuilder {
     this.writeFile('package.json', stringifyJSON(pkg, { indent: 2 }))
   }
 
+  _patchIndexHtml (html) {
+    return html
+      .replace(/<title>.*?<\/title>/, '')
+      .replace(/<meta name="description"[^>]*?>/, '')
+      .replace(/<link([^>]*?)href="(\/[^>]*?)>/g,
+        (_, a, b) => { return `<link${ a }href="{{ ssrContext._meta.baseUrl }}${ b }>` })
+      .replace(/<script([^>]*?)src="(\/[^>]*?)><\/script>/g,
+        (_, a, b) => { return `<script${ a }src="{{ ssrContext._meta.baseUrl }}${ b }></script>` })
+  }
+
   async #writeRenderTemplate (clientDir) {
     const htmlFile = join(clientDir, 'index.html')
-    const html = this.readFile(htmlFile)
+    const html = this._patchIndexHtml(this.readFile(htmlFile))
 
     const templateFn = await getProdSsrTemplateFn(html, this.quasarConf)
 
     this.writeFile(
-      'render-template.js',
+      this.ctx.appPaths.resolve.entry('render-template.js'),
       `export default ${ templateFn.source }`
     )
 
