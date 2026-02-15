@@ -42,7 +42,7 @@ import 'quasar/src/css/flex-addon.sass'
 import '<%= asset.path %>'
 <% }) %>
 
-import createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, { ssrIsRunningOnClientPWA }<% } %> from './app.js'
+// import createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, { ssrIsRunningOnClientPWA }<% } %> from './app.js'
 
 <% if (ctx.mode.pwa) { %>
 import 'app/<%= sourceFiles.pwaRegisterServiceWorker %>'
@@ -113,7 +113,9 @@ async function initialize() {
   return sys;
 }
 
-initialize().then(()=>{
+
+async function initApp() {
+const { default: createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, ssrIsRunningOnClientPWA<% } %> } = await import('./app.js');
 createQuasarApp(<%=
   ctx.mode.ssr
     ? (ctx.mode.pwa ? 'ssrIsRunningOnClientPWA ? createApp : createSSRApp' : 'createSSRApp')
@@ -150,4 +152,8 @@ createQuasarApp(<%=
 <% } else { %>
   .then(start)
 <% } %>
+}
+
+initialize().then(()=>{
+  initApp();
 });
