@@ -11,8 +11,8 @@
  * Boot files are your "main.js"
  **/
 
-import { sys } from 'zova';
-import { getPluginZovaOptions } from 'app/.zova/app/utils.js';
+// import { sys } from 'zova';
+// import { getPluginZovaOptions } from 'app/.zova/app/utils.js';
 <% if (ctx.mode.ssr && ctx.mode.pwa) { %>
 import { createSSRApp, createApp } from 'vue'
 <% } else { %>
@@ -42,7 +42,7 @@ import 'quasar/src/css/flex-addon.sass'
 import '<%= asset.path %>'
 <% }) %>
 
-// import createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, { ssrIsRunningOnClientPWA }<% } %> from './app.js'
+import createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, { ssrIsRunningOnClientPWA }<% } %> from './app.js'
 
 <% if (ctx.mode.pwa) { %>
 import 'app/<%= sourceFiles.pwaRegisterServiceWorker %>'
@@ -108,14 +108,14 @@ async function start ({
 
 }
 
-async function initialize() {
-  await sys.initialize(getPluginZovaOptions());
-  return sys;
-}
+// async function initialize() {
+//   await sys.initialize(getPluginZovaOptions());
+//   return sys;
+// }
 
 
 async function initApp() {
-const { default: createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, ssrIsRunningOnClientPWA<% } %> } = await import('./app.js');
+// const { default: createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, ssrIsRunningOnClientPWA<% } %> } = await import('./app.js');
 return createQuasarApp(<%=
   ctx.mode.ssr
     ? (ctx.mode.pwa ? 'ssrIsRunningOnClientPWA ? createApp : createSSRApp' : 'createSSRApp')
@@ -154,6 +154,8 @@ return createQuasarApp(<%=
 <% } %>
 }
 
-initialize().then(()=>{
-  return initApp();
-});
+initApp();
+
+// initialize().then(()=>{
+//   return initApp();
+// });
