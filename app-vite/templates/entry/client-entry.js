@@ -116,7 +116,7 @@ async function initialize() {
 
 async function initApp() {
 const { default: createQuasarApp<% if (ctx.mode.ssr && ctx.mode.pwa) { %>, ssrIsRunningOnClientPWA<% } %> } = await import('./app.js');
-createQuasarApp(<%=
+return createQuasarApp(<%=
   ctx.mode.ssr
     ? (ctx.mode.pwa ? 'ssrIsRunningOnClientPWA ? createApp : createSSRApp' : 'createSSRApp')
     : 'createApp'
@@ -146,7 +146,7 @@ createQuasarApp(<%=
       <% }) %>
     ]).then(bootFiles => {
       const boot = mapFn(bootFiles).filter(entry => typeof entry === 'function')
-      start(app, boot)
+      return start(app, boot)
     })
   })
 <% } else { %>
@@ -155,5 +155,5 @@ createQuasarApp(<%=
 }
 
 initialize().then(()=>{
-  initApp();
+  return initApp();
 });
