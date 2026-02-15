@@ -31,7 +31,7 @@ import 'quasar/src/css/flex-addon.sass'
 import '<%= asset.path %>'
 <% }) %>
 
-import createQuasarApp from './app.js'
+// import createQuasarApp from './app.js'
 
 <% if (preFetch) { %>
 import App from 'app/<%= sourceFiles.rootComponent %>'
@@ -50,6 +50,7 @@ const appPrefetch = typeof App.preFetch === 'function'
 // Since data fetching is async, this function is expected to
 // return a Promise that resolves to the app instance.
 export default async ssrContext => {
+    const { default: createQuasarApp } = await import('./app.js');
     const {
       app
     } = await createQuasarApp(createApp, ssrContext)
@@ -65,7 +66,7 @@ export default async ssrContext => {
     <% } %>
 
     <% if (bootEntries.length !== 0) { %>
-    
+
     for (let i = 0; i < bootFunctions.length; i++) {
       await bootFunctions[i]({
         app,

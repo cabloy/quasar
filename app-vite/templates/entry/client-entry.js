@@ -11,6 +11,8 @@
  * Boot files are your "main.js"
  **/
 
+import { sys } from 'zova';
+import { getPluginZovaOptions } from 'app/.zova/app/utils.js';
 <% if (ctx.mode.ssr && ctx.mode.pwa) { %>
 import { createSSRApp, createApp } from 'vue'
 <% } else { %>
@@ -106,6 +108,12 @@ async function start ({
 
 }
 
+async function initialize() {
+  await sys.initialize(getPluginZovaOptions());
+  return sys;
+}
+
+initialize().then(()=>{
 createQuasarApp(<%=
   ctx.mode.ssr
     ? (ctx.mode.pwa ? 'ssrIsRunningOnClientPWA ? createApp : createSSRApp' : 'createSSRApp')
@@ -142,3 +150,4 @@ createQuasarApp(<%=
 <% } else { %>
   .then(start)
 <% } %>
+});
