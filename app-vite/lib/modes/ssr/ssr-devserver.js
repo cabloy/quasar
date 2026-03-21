@@ -21,6 +21,11 @@ import { injectPwaManifest, buildPwaServiceWorker } from '../pwa/utils.js'
 const doubleSlashRE = /\/\//g
 const autoRemove = 'document.currentScript.remove()'
 
+// backward compat (Express v5 vs v4)
+function convertStarPath (url) {
+  return url === '*' ? '{*path}' : url
+}
+
 function logServerMessage (title, msg, additional) {
   log()
   info(`${ msg }${ additional !== void 0 ? ` ${ green(dot) } ${ additional }` : '' }`, title)
@@ -189,8 +194,8 @@ export class QuasarModeDevserver extends AppDevserver {
 
     const publicPath = this.#appOptions.publicPath = quasarConf.build.publicPath
     this.#appOptions.resolveUrlPath = publicPath === '/'
-      ? url => url || '/'
-      : url => (url ? (publicPath + url).replace(doubleSlashRE, '/') : publicPath)
+      ? url => convertStarPath(url) || '/'
+      : url => (url ? (publicPath + convertStarPath(url)).replace(doubleSlashRE, '/') : publicPath)
 
     const viteClient = this.#viteClient = await createServer(await quasarSsrConfig.viteClient(quasarConf))
     this.#viteWatcherList.push({
