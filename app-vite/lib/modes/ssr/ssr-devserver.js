@@ -23,7 +23,8 @@ const autoRemove = 'document.currentScript.remove()'
 
 // backward compat (Express v5 vs v4)
 function convertStarPath (url) {
-  return url === '*' ? '{*path}' : url
+  return url
+  // return url === '*' ? '{*path}' : url
 }
 
 function logServerMessage (title, msg, additional) {
