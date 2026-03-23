@@ -75,7 +75,14 @@ export class QuasarModeBuilder extends AppBuilder {
 
   async #buildWebserver () {
     const esbuildConfig = await quasarSsrConfig.webserver(this.quasarConf)
-    await this.buildWithEsbuild('SSR Webserver', esbuildConfig)
+    if(!esbuildConfig.buildsPatch) {
+      await this.buildWithEsbuild('SSR Webserver', esbuildConfig)
+      return;
+    }
+    for(const buildPatch of esbuildConfig.buildsPatch){
+      const esbuildConfig2=Object.assign({},esbuildConfig,buildPatch);
+      await this.buildWithEsbuild('SSR Webserver', esbuildConfig2)
+    }
   }
 
   async #copyWebserverFiles () {
