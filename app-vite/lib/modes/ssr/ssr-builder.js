@@ -81,6 +81,7 @@ export class QuasarModeBuilder extends AppBuilder {
     }
     for(const buildPatch of esbuildConfig.buildsPatch){
       const esbuildConfig2=Object.assign({},esbuildConfig,buildPatch);
+      delete esbuildConfig2.buildsPatch;
       await this.buildWithEsbuild('SSR Webserver', esbuildConfig2)
     }
   }
