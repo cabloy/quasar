@@ -69,19 +69,19 @@ export async function displayBanner ({ argv, ctx, cmd, details }) {
     }
 
     if (argv.mode === 'ssr') {
-      const packager = await ctx.cacheProxy.getModule('nodePackager')
-      banner += `
+//       const packager = await ctx.cacheProxy.getModule('nodePackager')
+//       banner += `
 
- Tip: The dependencies must be installed before running the app. You can do
-      this by running "$ ${ packager.name } install" inside the output folder.
-      If you are running the app from your project folder where dependencies
-      are already installed, then you can skip this step.
+//  Tip: The dependencies must be installed before running the app. You can do
+//       this by running "$ ${ packager.name } install" inside the output folder.
+//       If you are running the app from your project folder where dependencies
+//       are already installed, then you can skip this step.
 
- Tip: Notice the package.json generated, where there's a script defined:
-        "start": "node index.js"
-      Running "$ ${ packager.name === 'npm' ? 'npm run' : packager.name } start" from the output folder will
-      start the webserver. Alternatively you can call "$ node index.js"
-      yourself.`
+//  Tip: Notice the package.json generated, where there's a script defined:
+//         "start": "node index.js"
+//       Running "$ ${ packager.name === 'npm' ? 'npm run' : packager.name } start" from the output folder will
+//       start the webserver. Alternatively you can call "$ node index.js"
+//       yourself.`
     }
     else if (argv.mode === 'cordova') {
       banner += `
