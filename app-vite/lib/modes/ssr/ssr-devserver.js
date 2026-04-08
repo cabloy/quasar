@@ -268,10 +268,10 @@ export class QuasarModeDevserver extends AppDevserver {
         }
 
         ssrContext._meta.endingHeadTags += collectCss(
-          [ viteServer.moduleGraph.getModuleById(this.#pathMap.serverEntryFile.replaceAll('\\\\', '/')) ].concat(
+          [ viteServer.moduleGraph.getModuleById(this.#pathMap.serverEntryFile.replaceAll('\\', '/')) ].concat(
             [ ...(ssrContext.modules || []) ]
               .map((componentPath) => viteServer.moduleGraph.getModuleById(
-                path.resolve(componentPath).replaceAll('\\\\', '/')
+                path.resolve(componentPath).replaceAll('\\', '/')
               )))
         )
 

@@ -1,6 +1,6 @@
 {
   "name": "@cabloy/quasar-app-vite",
-  "version": "2.5.8",
+  "version": "2.5.9",
   "description": "Quasar Framework App CLI with Vite",
   "bin": {
     "quasar": "./bin/quasar.js"
