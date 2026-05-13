@@ -56,6 +56,10 @@ export function mapQuasarImports (code, importMap = {}) {
           ? data[ 1 ].trim()
           : importName
 
+        if (importAs.startsWith('type ')) {
+          return `import { ${importAs} } from 'quasar';`
+        }
+
         importMap[ importName ] = importAs
         return `import ${ importAs } from '${ importTransformation(importName) }';`
       })
