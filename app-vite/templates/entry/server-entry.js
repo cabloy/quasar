@@ -10,6 +10,7 @@
  *
  * Boot files are your "main.js"
  **/
+import { renderToString } from '@cabloy/vue-server-renderer';
 import { sys } from 'zova';
 import { getPluginZovaOptions } from 'app/.zova/app/utils.js';
 import { createApp<%= metaConf.hasStore && ssr.manualStoreSsrContextInjection !== true ? ', unref' : '' %> } from 'vue'
@@ -83,3 +84,5 @@ export async function initialize(envRuntime) {
   await sys.initialize(getPluginZovaOptions(), envRuntime);
   return sys;
 }
+
+export { renderToString };
