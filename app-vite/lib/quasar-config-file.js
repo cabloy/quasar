@@ -21,6 +21,7 @@ import { findClosestOpenPort, localHostList } from './utils/net.js'
 import { isMinimalTerminal } from './utils/is-minimal-terminal.js'
 import { readFileEnv } from './utils/env.js'
 import { BASELINE_WIDELY_AVAILABLE_TARGET_STRING } from './config-tools.js'
+import { isModeInstalled } from './modes/modes-utils.js'
 
 const defaultPortMapping = {
   spa: 9000,
@@ -233,7 +234,10 @@ export class QuasarConfigFile {
     const quasarConfigFileExtension = appPaths.quasarConfigOutputFormat === 'esm' ? 'mjs' : appPaths.quasarConfigOutputFormat
 
     // if filename syntax gets changed, then also update the "clean" cmd
-    this.#tempFile = `${ appPaths.quasarConfigFilename }.temporary.compiled.${ Date.now() }.${ quasarConfigFileExtension }`
+    this.#tempFile = join(
+      appPaths.pathContext.configTempDir,
+      `${ basename(appPaths.quasarConfigFilename) }.temporary.compiled.${ Date.now() }.${ quasarConfigFileExtension }`
+    )
 
     log(`Using ${ basename(appPaths.quasarConfigFilename) } in "${ appPaths.quasarConfigInputFormat }" format`)
   }
@@ -900,9 +904,16 @@ export class QuasarConfigFile {
       }
 
       if (cfg.ssr.pwa === true) {
-        // install pwa mode if it's missing
-        const { addMode } = await import('../lib/modes/pwa/pwa-installation.js')
-        await addMode({ ctx: this.#ctx, silent: true })
+        if (appPaths.pathContext.isolated) {
+          if (isModeInstalled(appPaths, 'pwa') === false) {
+            fatal('Isolated SSR+PWA requires pwa mode to be installed first. Run "quasar mode add pwa" outside isolation.')
+          }
+        }
+        else {
+          // install pwa mode if it's missing
+          const { addMode } = await import('../lib/modes/pwa/pwa-installation.js')
+          await addMode({ ctx: this.#ctx, silent: true })
+        }
       }
 
       this.#ctx.mode.pwa = cfg.ctx.mode.pwa = cfg.ssr.pwa === true

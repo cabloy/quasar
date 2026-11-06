@@ -37,7 +37,7 @@ const qAppPaths = (() => {
  */
 export function generateTypes (quasarConf) {
   const { appPaths } = quasarConf.ctx
-  const tsConfigDir = appPaths.resolve.app('.quasar')
+  const tsConfigDir = appPaths.pathContext.generatedRoot
 
   const fsUtils = {
     tsConfigDir,
@@ -74,7 +74,7 @@ function generateTsConfig (quasarConf, fsUtils) {
     // So, the rest, e.g. `'some-pkg': 'another-pkg'`, is not absolute and must be resolved as a package.
     const itemPath = isAbsolute(pathToTransform) === false
       // Try to resolve the package path first, it's crucial to some monorepo setups like npm/yarn/bun workspaces
-      ? (getPackagePath(pathToTransform, appPaths.appDir) || join('node_modules', pathToTransform))
+      ? (getPackagePath(pathToTransform, appPaths.appDir) || appPaths.resolve.app(join('node_modules', pathToTransform)))
       : pathToTransform
 
     const relativePath = relative(fsUtils.tsConfigDir, itemPath).replaceAll('\\', '/')
@@ -156,17 +156,18 @@ function generateTsConfig (quasarConf, fsUtils) {
 
       paths
     },
-    // include and exclude are relative to .quasar
+    // All paths remain relative to the generated tsconfig, even when its root
+    // is moved deeper into an isolated run directory.
     include: [
-      './**/*.d.ts', // Since .quasar starts with a dot, it won't be included by default
-      './../**/*'
+      './**/*.d.ts', // Explicitly include declarations in the generated (hidden) directory
+      `${ toTsPath(appPaths.appDir) }/**/*`
     ],
     exclude: [
-      './../dist',
-      './../node_modules',
-      './../src-capacitor',
-      './../src-cordova',
-      './../quasar.config.*.temporary.compiled*'
+      toTsPath(appPaths.resolve.app('dist')),
+      toTsPath(appPaths.resolve.app('node_modules')),
+      toTsPath(appPaths.capacitorDir),
+      toTsPath(appPaths.cordovaDir),
+      toTsPath(appPaths.resolve.app('quasar.config.*.temporary.compiled*'))
     ]
   }
 

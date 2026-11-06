@@ -3,6 +3,7 @@ import { normalize, resolve, join, sep } from 'node:path'
 
 import { fatal } from './logger.js'
 import { cliDir, resolveToCliDir } from './cli-runtime.js'
+import { getPathContext } from './path-context.js'
 
 const quasarConfigList = [
   { name: 'quasar.config.js', inputFormat: 'esm', outputFormat: 'esm' },
@@ -91,13 +92,18 @@ export function getAppPaths ({
     }
   }
 
+  // Capture these paths before the config file and app extensions are loaded.
+  // Consumers share this immutable context rather than re-reading the environment.
+  const pathContext = getPathContext(appDir)
+  defineHiddenProp(acc, 'pathContext', pathContext)
+
   const prefixDir = getPrefixDir(ctx)
-  const entryDir = resolve(appDir, '.quasar', prefixDir)
+  const entryDir = join(pathContext.generatedRoot, prefixDir)
 
   defineHiddenProp(acc.resolve, 'entry', dir => join(entryDir, dir))
 
   if (ctx !== void 0) {
-    const cacheDir = join(appDir, 'node_modules/.q-cache', prefixDir)
+    const cacheDir = join(pathContext.cacheRoot, prefixDir)
     defineHiddenProp(acc, 'cacheDir', cacheDir)
     defineHiddenProp(acc.resolve, 'cache', dir => join(cacheDir, dir))
   }

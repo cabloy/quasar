@@ -11,6 +11,17 @@ export interface IResolve {
   bex: (dir: string) => string;
 }
 
+export interface QuasarPathContext {
+  /** True when the run-specific generated root, cache and config paths are configured. */
+  readonly isolated: boolean;
+  /** Generated entry points, tsconfig and declarations; defaults to appDir/.quasar. */
+  readonly generatedRoot: string;
+  /** Cache root before the dev/prod-mode prefix; defaults to appDir/node_modules/.q-cache. */
+  readonly cacheRoot: string;
+  /** Temporary compiled config location; defaults to appDir. */
+  readonly configTempDir: string;
+}
+
 export interface QuasarAppPaths {
   cliDir: string;
   appDir: string;
@@ -26,6 +37,9 @@ export interface QuasarAppPaths {
   quasarConfigFilename: string;
   quasarConfigInputFormat: "esm" | "cjs" | "ts";
   quasarConfigOutputFormat: "esm" | "cjs";
+
+  /** Immutable generated-path context captured before loading user configuration. */
+  readonly pathContext: QuasarPathContext;
 
   resolve: IResolve;
 }

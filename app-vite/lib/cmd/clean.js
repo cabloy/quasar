@@ -1,6 +1,6 @@
 import parseArgs from 'minimist'
 
-import { log } from '../utils/logger.js'
+import { log, fatal } from '../utils/logger.js'
 
 const argv = parseArgs(process.argv.slice(2), {
   alias: {
@@ -43,6 +43,11 @@ import fse from 'fs-extra'
 import { getCtx } from '../utils/get-ctx.js'
 
 const { appPaths } = getCtx()
+const { pathContext } = appPaths
+
+if (pathContext.isolated && argv.dist === true) {
+  fatal('Isolated clean cannot remove the shared /dist folder. Clean the run-specific build output through its owner.')
+}
 
 console.log()
 
@@ -54,16 +59,16 @@ const cleanAll = (
 )
 
 if (cleanAll === true || argv.entry === true) {
-  fse.removeSync(appPaths.resolve.app('.quasar'))
+  fse.removeSync(appPaths.pathContext.generatedRoot)
   log('Cleaned generated entry points')
 }
 
 if (cleanAll === true || argv.cache === true) {
-  fse.removeSync(appPaths.cacheDir)
+  fse.removeSync(pathContext.isolated ? pathContext.cacheRoot : appPaths.cacheDir)
   log('Cleaned dev/build cache')
 }
 
-if (cleanAll === true || argv.dist === true) {
+if (pathContext.isolated === false && (cleanAll === true || argv.dist === true)) {
   // we empty the dist folder
   // (will not work if build > distDir was changed outside of it)
   fse.emptyDirSync(appPaths.resolve.app('dist'))
@@ -72,12 +77,13 @@ if (cleanAll === true || argv.dist === true) {
 
 if (cleanAll === true || argv.qconf === true) {
   const { globSync } = await import('tinyglobby')
-  const fileList = globSync([ 'quasar.config.*.temporary.compiled.*' ], { cwd: appPaths.appDir })
+  const fileList = globSync([ 'quasar.config.*.temporary.compiled.*' ], {
+    cwd: appPaths.pathContext.configTempDir,
+    absolute: true
+  })
 
   fileList.forEach(file => {
-    fse.removeSync(
-      appPaths.resolve.app(file)
-    )
+    fse.removeSync(file)
   })
 
   log(`Cleaned ${ fileList.length } temporary compiled quasar.config file${ fileList.length === 1 ? '' : 's' }`)

@@ -122,9 +122,18 @@ await displayBanner({ argv, ctx, cmd: 'build' })
 
 const { log, fatal } = await import('../utils/logger.js')
 
-// install mode if it's missing
-const { addMode } = await import(`../modes/${ argv.mode }/${ argv.mode }-installation.js`)
-await addMode({ ctx, silent: true, target: argv.target })
+// Isolated builds must not scaffold shared source folders or install dependencies.
+const { isModeInstalled } = await import('../modes/modes-utils.js')
+if (ctx.appPaths.pathContext.isolated) {
+  if (isModeInstalled(ctx.appPaths, argv.mode) === false) {
+    fatal(`Isolated build requires ${ argv.mode } mode to be installed first. Run "quasar mode add ${ argv.mode }" outside isolation.`)
+  }
+}
+else {
+  // install mode if it's missing
+  const { addMode } = await import(`../modes/${ argv.mode }/${ argv.mode }-installation.js`)
+  await addMode({ ctx, silent: true, target: argv.target })
+}
 
 const { QuasarConfigFile } = await import('../quasar-config-file.js')
 const quasarConfFile = new QuasarConfigFile({
